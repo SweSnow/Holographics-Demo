@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Three.js</title>
+
+	<style type="text/css">
+	
+	body {
+		margin: 0;
+		padding: 0;
+	}
+
+	canvas {
+		width: 100%;
+		height: 100%;
+	}
+
+	#score {
+		position: absolute;
+		top: 10px;
+		left: 10px;
+		color: #fff;
+	}
+
+	</style>
+
+</head>
+<body>
+
+<div id="score">TEST</div>
+	
+<script src="lib/three.min.js"></script>
+<script src="lib/keyboard.min.js"></script>
+<script src="lib/StereoEffect.js"></script>
+
+<script type="text/javascript">
+
+var scoreDiv = document.querySelector('#score');
+
+var startTime = Date.now();
+var adown = false;
+var sdown = false;
+var ddown = false;
+var wdown = false;
+
+var cubeDensity = 1;
+var cubeBlockSize = 500;
+
+var useCardboard = false;
+
+var effect;
+
+var cubeColors = [0xF44336, 0xE91E63, 0x3F51B5, 0x673AB7, 0x2196F3, 0x009688]
+
+var worldWidth = 20;
+var worldHeight = 20;
+
+var lastBlockPosition = -1;
+
+var cubes = [];
+
+keyboardJS.bind('a', function(e) {
+	adown = true;
+}, function(e) {
+	adown = false;
+});
+keyboardJS.bind('s', function(e) {
+	sdown = true;
+}, function(e) {
+	sdown = false;
+});
+keyboardJS.bind('d', function(e) {
+	ddown = true;
+}, function(e) {
+	ddown = false;
+});
+keyboardJS.bind('w', function(e) {
+	wdown = true;
+}, function(e) {
+	wdown = false;
+});
+
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 400);
+
+var renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+if (useCardboard) {
+	effect = new THREE.StereoEffect(renderer);
+}
+
+var ambientLight = new THREE.AmbientLight(0x040404);
+scene.add(ambientLight);
+
+var geometry = new THREE.BoxGeometry(1, 1, 1);
+
+var colorIndex = 0;
+var colorListLength = cubeColors.length;
+
+var fog = new THREE.Fog(0x000000, 1, 180)
+scene.fog = fog;
+
+function generateMoreBlocks(baseZ) {
+	for (var i = 0; i < (cubeDensity * cubeBlockSize); i++) {
+
+		var color = cubeColors[colorIndex % colorListLength];
+		colorIndex++;
+
+		var cubeMaterial = new THREE.MeshPhongMaterial({color: color});
+
+		var cube = new THREE.Mesh(geometry, cubeMaterial);
+
+		cube.position.x = (Math.random() - 0.5) * (worldWidth);
+		cube.position.y = (Math.random() - 0.5) * (worldHeight);
+		cube.position.z = -i * cubeDensity + baseZ;
+
+		scene.add(cube);
+
+		cubes.push(cube);
+	}
+	return baseZ;
+}
+
+//creating boundaries
+/*var geometryWall = new THREE.BoxGeometry(1, worldHeight, 1000)
+var geometryCeilFloor = new THREE.BoxGeometry(worldWidth, 1, 1000);
+var wallMaterial = new THREE.MeshPhongMaterial({color: 0x0000ff});
+
+var cTop = new THREE.Mesh(geometryCeilFloor, wallMaterial);
+var cBottom = new THREE.Mesh(geometryCeilFloor, wallMaterial);
+var cLeft = new THREE.Mesh(geometryWall, wallMaterial);
+var cRight = new THREE.Mesh(geometryWall, wallMaterial);
+
+cTop.position.y = worldHeight / 2;
+cBottom.position.y = -worldHeight / 2;
+cLeft.position.x = -worldWidth / 2;
+cRight.position.x = worldWidth / 2;
+
+scene.add(cTop);
+scene.add(cBottom);
+scene.add(cLeft);
+scene.add(cRight);
+*/
+
+
+var searchLight = new THREE.PointLight(0xffffff);
+scene.add(searchLight);
+
+function update(deltaZero) {
+	camera.position.z = -deltaZero / 25;
+	searchLight.position = camera.position;
+
+	var stepsize = 0.2;
+
+	if (lastBlockPosition === -1) {
+		lastBlockPosition = generateMoreBlocks(camera.position.z);
+	}
+
+	if (camera.position.z < lastBlockPosition + cubeBlockSize) {
+		lastBlockPosition = generateMoreBlocks(lastBlockPosition - cubeBlockSize);
+	}
+
+	if (adown) {
+		camera.position.x -= stepsize;
+	}
+	if (sdown) {
+		camera.position.y -= stepsize;
+	}
+	if (ddown) {
+		camera.position.x += stepsize;
+	}
+	if (wdown) {
+		camera.position.y += stepsize;
+	}
+
+	if (camera.position.x < 0) {
+		camera.position.x = Math.max(-worldWidth / 2, camera.position.x);
+	} else {
+		camera.position.x = Math.min(worldWidth / 2, camera.position.x);
+	}
+
+	if (camera.position.y < 0) {
+		camera.position.y = Math.max(-worldHeight / 2, camera.position.y);
+	} else {
+		camera.position.y = Math.min(worldHeight / 2, camera.position.y);
+	}
+
+	var camPos = camera.position;
+	var cubesLength = cubes.length;
+	for (var i = 0; i < cubesLength; i++) {
+		cubeBounding = new THREE.Box3().setFromObject(cubes[i]);
+		if (camPos.z > cubeBounding.min.z && camPos.z < cubeBounding.max.z) {
+			if (camPos.x > cubeBounding.min.x && camPos.x < cubeBounding.max.x) {
+				if (camPos.y > cubeBounding.min.y && camPos.y < cubeBounding.max.y) {
+					camera.position.x = 0;
+					camera.position.y = 0;
+					camera.position.z = 0;
+				}
+			}
+		}
+	}
+
+	scoreDiv.innerHTML = Math.round(camera.position.z * -1);
+
+}
+
+function render() {
+	update(Date.now() - startTime);
+	resize();
+
+    camera.updateProjectionMatrix();
+
+	requestAnimationFrame(render);
+	if (useCardboard) {
+		effect.render(scene, camera);
+	} else {
+		renderer.render(scene, camera);
+	}
+}
+
+function resize() {
+	var width = window.innerWidth;
+	var height = window.innerHeight;
+
+	camera.aspect = width / height;
+	camera.updateProjectionMatrix();
+
+	renderer.setSize(width, height);
+	if (useCardboard) {
+		effect.setSize(width, height);
+	}
+}
+
+render();
+
+
+</script>
+
+</body>
+</html>
